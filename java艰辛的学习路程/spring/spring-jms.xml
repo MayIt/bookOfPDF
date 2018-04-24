@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jms="http://www.springframework.org/schema/jms"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+     http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+     http://www.springframework.org/schema/context
+     http://www.springframework.org/schema/context/spring-context-3.0.xsd
+    http://www.springframework.org/schema/beans 
+    http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+	http://www.springframework.org/schema/jms 
+	http://www.springframework.org/schema/jms/spring-jms-3.0.xsd">
+	
+	<!-- 消息队列共公配置，需要Active消息队列的服务，都引入此配置文件 -->
+	
+	<!-- 类型转换器，将iBase消息实体对象转换为 -->
+	<bean id="messageItemConverter" class="com.southgis.ibase.message.JMS.ActivemqMessageConverter" />
+	
+	<!-- ActiveMQ连接工厂 -->						 										  
+	<bean id="targetConnectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
+		<property name="brokerURL" value="${activemq.url}" />
+		<property name="userName" value="${activemq.user}"/>
+		<property name="password" value="${activemq.pass}"/>
+		<!-- 采用异步发送 -->
+		<property name="useAsyncSend" value="true" />
+		<!-- 重复策略（守护线程类消息需要，在代码中动态设置） -->
+		<!-- <property name="redeliveryPolicy" ref="activeMQRedeliveryPolicy" /> -->
+	</bean>
+	<!-- 扩展自SingleConnectionFactory，用于缓存messageProducer、MessageConsumer和Session -->
+	<bean id="cachingConnectionFactory" class="org.springframework.jms.connection.CachingConnectionFactory">
+		<!-- 目标ConnectionFactory对应真实的可以产生JMS Connection的ConnectionFactory -->
+		<property name="targetConnectionFactory" ref="targetConnectionFactory" />
+		<!-- Session缓存数量,这里属性也可以直接在这里配置 -->
+		<property name="sessionCacheSize" value="10" />
+	</bean>
+	<!-- Spring提供的JMS工具类，它可以进行消息发送、接收等 -->
+	<bean id="jmsTemplate" class="org.springframework.jms.core.JmsTemplate">
+		<!-- 这个connectionFactory对应的是我们定义的Spring提供的那个ConnectionFactory对象 -->
+		<property name="connectionFactory" ref="cachingConnectionFactory" />
+		<!-- deliveryMode, priority, timeToLive 的开关,要生效,必须配置为true,默认false -->
+		<property name="explicitQosEnabled" value="true" />
+		<!-- 发送模式 DeliveryMode.NON_PERSISTENT=1:非持久  启动mq后消息会丢失-->
+		<!-- DeliveryMode.PERSISTENT=2:持久  启动mq后消息不会丢失 -->
+		<property name="deliveryMode" value="2" />
+		<!-- 消息转换器 -->
+		<property name="messageConverter" ref="messageItemConverter" />
+		<!-- 消费者是否接收来自同一个连接的消息 ，只有当pubSubNoLocal为false时，消费者才能接收到来自同一个连接的消息-->
+		<property name="pubSubNoLocal" value="false"></property>
+		<!-- 接收超时 -->
+		<property name="receiveTimeout" value="1000" />
+	</bean>
+	
+	<!--接收离线消息 目的地（队列点对点类型） -->
+	<bean id="queueDestination" class="org.apache.activemq.command.ActiveMQQueue">
+		<!-- 通过 构造 设定 队列的名字 -->
+		<constructor-arg index="0" value="ibaseQueue" />
+	</bean>
+	<!--通知发送消息 目的地（队列点对点类型）
+	在mainWeb中引入“spring-jms-message.xml”定义的监听来完成对消息进行发送处理） -->
+	<bean id="topicDestination" class="org.apache.activemq.command.ActiveMQQueue">
+		<constructor-arg index="0" value="ibaseTopic" />
+	</bean>
+	
+	<!--
+ 	<bean id="mail" class="com.southgis.ibase.message.mail.MailService">
+		<property name="mailHost" value="smtp.163.com" />
+		<property name="mailProtocol" value="smtp" />
+		<property name="mailAuth" value="true" />
+	</bean>
+	-->
+	<bean id="messageService" class="com.southgis.ibase.message.service.MessageService">
+		<constructor-arg>
+			<list>
+				<value>daemon</value>
+				<value>mongoDB</value>
+				<value>message</value>
+				<!-- <value>mail</value> -->
+			</list>
+		</constructor-arg>
+	</bean>
+	
+</beans>

@@ -1,0 +1,2 @@
+exists （sql 返回结果集为真） 
+not exists (sql 不返回结果集为真） 
